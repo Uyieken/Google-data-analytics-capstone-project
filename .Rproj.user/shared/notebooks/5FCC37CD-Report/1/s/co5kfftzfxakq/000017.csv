@@ -1,0 +1,9 @@
+"0","merged_data %>%
+  ggplot(aes(TotalSteps, Total_hours_in_bed)) +
+  geom_point(color = Total_hours_in_bed, alpha = 0.5) +
+  geom_smooth() +
+  facet_wrap(~TotalSleepRecords)
+"
+"2","Error in merged_data %>% ggplot(aes(TotalSteps, Total_hours_in_bed)) : 
+  could not find function ""%>%""
+"

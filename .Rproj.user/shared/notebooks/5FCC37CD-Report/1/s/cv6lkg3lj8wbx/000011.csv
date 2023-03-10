@@ -1,0 +1,6 @@
+"0","merged_data_conv <- merged_data %>%
+  rename(Date1 = Date)
+"
+"2","Error in merged_data %>% rename(Date1 = Date) : 
+  could not find function ""%>%""
+"

@@ -1,0 +1,264 @@
+---
+title: "Google Capstone Study: Bellabeat."
+author: "Henry Osamwonyi Irabor"
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data Analysis Process
+
+Bellabeat is a global digital organization that focuses on women's fitness. Their products mostly comprise of fitness monitoring technologies that track sleep, calories, heartbeat, weight-loss, distance travelled etc.
+
+The Bellabeat wants to know how custpmers use its product. So they want me to look at external data identify customer trends in the industry.
+
+### Ask
+
+1. What is the problem you are trying to solve?
+
+   * Ans: I am trying to determine how customers use Bellabeat's products.
+
+2. How can your insights drive business decisions?
+
+   * Ans: My insights can influence marketing strategies, as they will inform the company of trends in product usage.
+
+**Business Task:** Analyze trends in the Fitbit data to understand how customers use fitness trackers.
+
+
+### Prepare
+
+The data sets contain 30 customers. This quantity is too small to identify industry trends.
+
+The data does not completely pass the **ROCCC** test because
+
+* The small sample size makes it unreliable.
+* The data source Fitbit is known, so it is original
+* The datasets are comprehensive.
+* The data was collected in 2016, therefore it is not current
+* The data has no citation
+
+We then load the required R packages
+```{r load packages}
+library(tidyverse)
+library(lubridate)
+library(gsubfn)
+library(ggExtra)
+```
+Next we import the required csv files into R:
+```{r}
+sleep_day <- read.csv("sleepDay_merged.csv")
+daily_activity <- read.csv("dailyActivity_merged.csv")
+daily_calories <- read.csv("dailyCalories_merged.csv")
+weight <- read.csv("WeightLogInfo_merged.csv")
+```
+View the data structure
+```{r}
+View(sleep_day)
+str(sleep_day)
+View(daily_activity)
+str(daily_activity)
+view(daily_calories)
+str(daily_calories)
+view(weight)
+str(weight)
+```
+
+
+
+## Process
+
+Clean data by removing any duplicates or rows with missing data
+
+```{r}
+sleep_day_clean <- sleep_day[!duplicated(sleep_day), ] %>%
+  na.omit()
+
+daily_activity_clean <- daily_activity[!duplicated(daily_activity), ] %>%
+  na.omit()
+
+daily_calories_clean <- daily_calories[!duplicated(daily_calories), ] %>%
+  na.omit()
+
+weight_clean <- weight[!duplicated(weight), ]
+```
+The weight dataset has a particular variable with lots of N/A fields, therefore removing rows with missing data, will make the dataset too small.
+
+After data cleaning, we need to know how many unique customers we have in each data set
+```{r}
+daily_activity_clean %>%
+  count(Id)
+```
+The daily activity dataset gives us 33 unique customers
+
+```{r}
+sleep_day_clean %>%
+  count(Id)
+```
+The sleep dataset gives us 24 unique customers
+
+```{r}
+daily_calories_clean %>% count(Id)
+```
+The daily calories dataset also gives us 33 customers
+
+```{r}
+weight_clean %>% count(Id)
+```
+The weight dataset contains only 8 unique customers
+
+The sleepday column under the sleep dataset contains string variables not dates,
+not dates, therefore we must remove certain unwanted parts of the string
+
+```{r}
+sleep_day_clean$SleepDay <- gsub(
+  " 12:00:00 AM", "",
+  as.character(sleep_day_clean$SleepDay)
+)
+```
+Before analysis, we shall create another variable called weekday witin the daily activity, 
+daily calories and sleep datasets.
+
+```{r}
+daily_activity_clean <- daily_activity_clean %>%
+  mutate(Weekday = weekdays
+  (as.Date(ActivityDate, "%m/%d/%Y")))
+glimpse(daily_activity_clean)
+
+
+sleep_day_clean <- sleep_day_clean %>%
+  mutate(Weekday = weekdays
+  (as.Date(SleepDay, "%m/%d/%Y")))
+glimpse(sleep_day_clean)
+
+daily_calories_clean <- daily_calories_clean %>%
+  mutate(Weekday = weekdays
+  (as.Date(ActivityDay, "%m/%d/%Y")))
+glimpse(daily_calories_clean)
+```
+
+Under the sleep dataset, we shall also create columns for hourly measurements
+```{r}
+updated_sleep_day <- sleep_day_clean %>%
+  mutate(
+    Total_hours_asleep = TotalMinutesAsleep / 60,
+    Total_hours_in_bed = TotalTimeInBed / 60
+  )
+
+updated_sleep_day$Total_hours_in_bed <-
+  round(updated_sleep_day$Total_hours_in_bed, digits = 2)
+
+updated_sleep_day$Total_hours_asleep <-
+  round(updated_sleep_day$Total_hours_asleep, digits = 2)
+```
+
+
+### Analysis/Visualization
+
+From the daily activity dataset, we shall then plot calories against total number of steps
+
+```{r}
+ggplot(
+  data = daily_activity_clean,
+  mapping = aes(x = TotalSteps, y = Calories)
+) +
+  geom_point(aes(color = Calories)) +
+  geom_smooth()
+```
+From the scatterplot above, it is inferred that calories burned has a positive correlation with the total number of steps taken by users.
+
+We will then use the sleep dataset, and plot the total hours asleep against weekday, to understand how sleep is distributed along weekdays for customers that sleep either once, twice or thrice per day.
+
+```{r}
+ggplot(
+  data = updated_sleep_day,
+  mapping = aes(
+    x = Weekday,
+    y = Total_hours_asleep
+  )
+) +
+  geom_boxplot() +
+  facet_wrap(~TotalSleepRecords) +
+  ggExtra::rotateTextX()
+```
+
+From the box-plot above it is inferred that **Sundays** have the highest mean for total number of hours slept
+
+
+From the daily calorie dataset, we will plot calorie against weekday to observe which days customers burn calories the most.
+
+```{r}
+daily_calories_clean %>%
+  ggplot(aes(Weekday, Calories, color = Calories)) +
+  geom_boxplot()
+```
+
+From the box-plot above, there is not any particular trend between calories burned and weekday
+
+Gor a more effective analysis, let us combine activity day and sleep data sets. But to do this, we must make all the column names of primary and foreign keys match by renaming them.
+
+```{r}
+Sleep_data <- updated_sleep_day %>%
+  rename(Date = SleepDay)
+
+Daily_activity_data <- daily_activity_clean %>%
+  rename(Date = ActivityDate)
+
+```
+
+Merge datasets using the Date and ID column
+```{r}
+merged_data <- merge(Daily_activity_data, Sleep_data, by = c("Id", "Date"))
+```
+
+Next we analyze the data by plotting total hours asleep against total steps taken travelled to find any relationship
+
+```{r echo=TRUE, warning=FALSE}
+merged_data %>%
+  ggplot(aes(TotalSteps, Total_hours_in_bed)) +
+  geom_point(color = "Blue", alpha = 0.5) +
+  geom_smooth() +
+  facet_wrap(~TotalSleepRecords)
+```
+
+From the charts above, there is no identifiable relationship between sleep and steps taken.
+
+
+Finally, we combine the already merged dataset to the weight dataset. As we did previously, we rename the required foreign keys to match. However, this will reduce the number of unique users to 8
+
+```{r}
+weight_clean$Date1 = str_sub(weight_clean$Date,1,8)
+
+merged_data_conv <- merged_data %>%
+  rename(Date1 = Date)
+```
+
+Merge datasets
+
+```{r}
+merged_data2 <- merge(merged_data_conv, weight_clean, by = c("Id", "Date1"))
+```
+
+Next we plot a graph to determine any realationship between total number of steps taken, and weight in pounds.
+
+```{r}
+merged_data2 %>% 
+  ggplot(aes(TotalSteps, WeightPounds))+
+  geom_point(aes(color = WeightPounds))+
+  geom_smooth()
+```
+
+This chart shows that the weight of users decreases as the total number of steps taken reduces. Therefore, users that take more steps, **lose more weight**.
+
+
+Calories against weight
+
+```{r}
+merged_data2 %>% 
+  ggplot(aes(WeightPounds, Calories))+
+  geom_point()+
+  geom_smooth()
+```
+
